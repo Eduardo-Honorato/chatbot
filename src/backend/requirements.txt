@@ -8,9 +8,9 @@ anthropic==0.18.0
 google-generativeai==0.3.2
 
 # Database (Task 3)
-SQLAlchemy==2.0.29
+SQLAlchemy>=2.0.44
 Flask-SQLAlchemy==3.1.1
-psycopg2-binary==2.9.9
+psycopg2-binary>=2.9.11
 
 # Utilities
 python-dotenv==1.0.1
