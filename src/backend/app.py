@@ -1,5 +1,6 @@
 from flask import Flask, request, jsonify
 import os
+import re
 
 app = Flask(__name__)
 
@@ -14,9 +15,8 @@ if DATABASE_URL == '':
     app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite://'
     app.config['DB_CONFIGURED'] = False
 else:
-    # Convert postgres:// to postgresql:// for SQLAlchemy compatibility
-    if DATABASE_URL.startswith('postgres://'):
-        DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
+    # Normalize any postgres family prefix to postgresql+psycopg2://
+    DATABASE_URL = re.sub(r'^postgres(?:ql)?(?:\+\w+)?://', 'postgresql+psycopg2://', DATABASE_URL, count=1)
     app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
     app.config['DB_CONFIGURED'] = True
 
@@ -26,7 +26,11 @@ app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {'poolclass': NullPool, 'pool_pre_ping
 
 # Initialize database on demand - nothing connects at import
 from models import init_db, ensure_db
-init_db(app)
+try:
+    init_db(app)
+except Exception:
+    app.logger.exception("Database initialization failed")
+    app.config['DB_CONFIGURED'] = False
 
 # Database guard - check if DB is configured, only used in routes that access DB
 def db_guard():
