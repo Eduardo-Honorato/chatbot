@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+﻿from flask import Flask, request, jsonify
 import os
 
 app = Flask(__name__)
@@ -17,7 +17,7 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {'pool_pre_ping': True}
 
 # Initialize database
-from src.backend.models import init_db
+from models import init_db
 init_db(app)
 
 # ... rest of the existing routes remain unchanged
@@ -68,7 +68,7 @@ def chat():
 
         # For now, return a simple echo response
         # LLM integration will be added in Task 2
-        response_text = f"Você disse: '{user_message}'"
+        response_text = f"VocÃª disse: '{user_message}'"
 
         return jsonify({
             "response": response_text,
