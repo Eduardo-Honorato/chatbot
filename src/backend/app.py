@@ -92,36 +92,65 @@ def health():
 
 @app.route('/api/chat', methods=['POST'])
 def chat():
-    """Chat endpoint - receives message, gets LLM response, returns it."""
+    """Chat endpoint - receives message, gets LLM response in Portuguese, returns it."""
     try:
         data = request.get_json()
         if not data or 'message' not in data:
             return jsonify({
-                "error": " 'message' field is required"
+                "error": "'message' field is required"
             }), 400
 
         user_message = data['message']
 
-        # Basic validation
+        # Validation: 400 if message is empty or >1000 characters
         if not user_message or not user_message.strip():
             return jsonify({
                 "error": "Message cannot be empty"
             }), 400
 
-        # For now, return a simple echo response
-        # LLM integration will be added in Task 2
-        response_text = f"Você disse: '{user_message}'"
+        if len(user_message) > 1000:
+            return jsonify({
+                "error": "Message cannot have more than 1000 characters"
+            }), 400
+
+        # Use LLM integration to get response with Portuguese system prompt
+        from llm_integration import LLMIntegration
+        llm = LLMIntegration()
+
+        # Portuguese system prompt for Eduardo Honorato's portfolio assistant
+        system_prompt = (
+            "Você é um assistente de portfólio do Eduardo Honorato. "
+            "Apenas discuta serviços e processo de trabalho. "
+            "Para orçamento, direcione para o WhatsApp. "
+            "Não invente preços ou prazos. "
+            "Recuse tópicos fora do escopo. "
+            "Mantenha respostas curtas (até ~120 palavras)."
+        )
+
+        response_text = llm.get_response([
+            {'role': 'system', 'content': system_prompt},
+            {'role': 'user', 'content': user_message}
+        ])
+
+        # If LLM fails or not configured, return 503 (no stack trace, never expose keys)
+        if not response_text or "nenhum provedor" in response_text.lower() or "não configurado" in response_text.lower():
+            return jsonify({
+                "error": "Provedor de LLM não está configurado ou falhou"
+            }), 503
+
+        message_length = len(user_message)
 
         return jsonify({
             "response": response_text,
-            "provider": "echo",
-            "message_length": len(user_message)
+            "provider": "openai",
+            "message_length": message_length
         })
 
     except Exception as e:
+        # Never expose stack traces or keys - generic error
         return jsonify({
-            "error": str(e)
-        }), 500
+            "error": "Erro interno do servidor"
+        }), 503
 
 
 @app.route('/api/history', methods=['GET'])

@@ -21,43 +21,24 @@ class LLMIntegration:
             LLMProvider.OPENAI: {
                 'model': os.environ.get('OPENAI_MODEL', 'gpt-3.5-turbo'),
                 'api_key': os.environ.get('OPENAI_API_KEY'),
-                'client': None,
             },
-            LLMProvider.ANTHROPIC = {
+            LLMProvider.ANTHROPIC: {
                 'model': os.environ.get('ANTHROPIC_MODEL', 'claude-instant-1.2'),
                 'api_key': os.environ.get('ANTHROPIC_API_KEY'),
-                'client': None,
             },
-            LLMProvider.GEMINI = {
+            LLMProvider.GEMINI: {
                 'model': os.environ.get('GEMINI_MODEL', 'gemini-pro'),
                 'api_key': os.environ.get('GEMINI_API_KEY'),
-                'client': None,
             },
         }
-        self._initialize_clients()
+        # Clients are initialized on demand, not at import time
 
-    def _initialize_clients(self):
-        """Initialize API clients for enabled providers."""
-        for provider, config in self.providers.items():
-            if config['api_key'] and config['api_key'].startswith('sk-') or config['api_key'].startswith('an-') or config['api_key'].startswith('g-'):
-                try:
-                    if provider == LLMProvider.OPENAI:
-                        import openai
-                        config['client'] = openai.OpenAI(api_key=config['api_key'])
-                        logger.info(f"OpenAI client initialized with model: {config['model']}")
-                    elif provider == LLMProvider.ANTHROPIC:
-                        import anthropic
-                        config['client'] = anthropic.Anthropic(api_key=config['api_key'])
-                        logger.info(f"Anthropic client initialized with model: {config['model']}")
-                    elif provider == LLMProvider.GEMINI:
-                        from google.generativeai import configure, GenerativeModel
-                        configure(api_key=config['api_key'])
-                        config['model_obj'] = GenerativeModel(config['model'])
-                        logger.info(f"Gemini client initialized with model: {config['model']}")
-                except ImportError as e:
-                    logger.warning(f"Could not import {provider} client: {e}")
-                except Exception as e:
-                    logger.warning(f"Error initializing {provider} client: {e}")
+    def _is_provider_enabled(self, provider_name):
+        """Check if a provider has both API key and model configured."""
+        config = self.providers.get(provider_name)
+        if not config:
+            return False
+        return bool(config['api_key'] and config['model'])
 
     def get_response(self, messages, provider=None):
         """
@@ -72,22 +53,45 @@ class LLMIntegration:
         """
         # Determine which provider to use
         if provider is None:
-            # Try providers that have clients initialized
+            # Try providers that are enabled (have both api_key and model)
             for provider_name in [LLMProvider.OPENAI, LLMProvider.ANTHROPIC, LLMProvider.GEMINI]:
-                config = self.providers[provider_name]
-                if config['client'] is not None:
+                if self._is_provider_enabled(provider_name):
                     provider = provider_name
                     break
             else:
-                # Fallback to first provider even if client not initialized
-                provider = LLMProvider.OPENAI
+                # No provider enabled
+                return "Desculpe, nenhum provedor de LLM está configurado. Verifique as API keys e variáveis de modelo."
 
         # Get the provider config
         config = self.providers.get(provider)
-        if not config or config['client'] is None:
-            logger.error(f"No configured client for provider: {provider}")
+        if not config or not config.get('api_key') or not config.get('model'):
+            logger.error(f"No configured provider: {provider}")
             return f"Desculpe, o provedor {provider} não está configurado. Verifique as API keys."
 
+        # Create client on demand if not already created
+        if config.get('client') is None:
+            try:
+                if provider == LLMProvider.OPENAI:
+                    import openai
+                    config['client'] = openai.OpenAI(api_key=config['api_key'])
+                    logger.info(f"OpenAI client initialized with model: {config['model']}")
+                elif provider == LLMProvider.ANTHROPIC:
+                    import anthropic
+                    config['client'] = anthropic.Anthropic(api_key=config['api_key'])
+                    logger.info(f"Anthropic client initialized with model: {config['model']}")
+                elif provider == LLMProvider.GEMINI:
+                    from google.generativeai import configure, GenerativeModel
+                    configure(api_key=config['api_key'])
+                    config['model_obj'] = GenerativeModel(config['model'])
+                    logger.info(f"Gemini client initialized with model: {config['model']}")
+            except ImportError as e:
+                logger.warning(f"Could not import {provider} client: {e}")
+                return f"Desculpe, o provedor {provider} não está disponível no momento."
+            except Exception as e:
+                logger.warning(f"Error initializing {provider} client: {e}")
+                return f"Desculpe, houve um erro ao inicializar o provedor {provider}."
+
+        # Get the provider response
         try:
             if provider == LLMProvider.OPENAI:
                 return self._get_openai_response(messages, config)
@@ -97,7 +101,6 @@ class LLMIntegration:
                 return self._get_gemini_response(messages, config)
             else:
                 return f"Provedor {provider} não suportado."
-
         except Exception as e:
             logger.error(f"Error getting LLM response from {provider}: {e}")
             # Try fallback to next provider
@@ -111,7 +114,7 @@ class LLMIntegration:
                 model=config['model'],
                 messages=messages,
                 temperature=0.7,
-                max_tokens=1000
+                max_tokens=400,
             )
             return response.choices[0].message.content
         except Exception as e:
@@ -135,7 +138,7 @@ class LLMIntegration:
             response = config['client'].messages.create(
                 model=config['model'],
                 messages=anthropic_messages,
-                max_tokens=1000,
+                max_tokens=400,
                 temperature=0.7
             )
             # Extract text from Anthropic response
@@ -167,7 +170,7 @@ class LLMIntegration:
         for i in range(current_index + 1, len(provider_order)):
             next_provider = provider_order[i]
             config = self.providers[next_provider]
-            if config['client'] is not None:
+            if config.get('client') is not None:
                 try:
                     logger.info(f"Falling back to provider: {next_provider}")
                     return self.get_response(messages, next_provider)
