@@ -3,11 +3,25 @@ import os
 
 app = Flask(__name__)
 
-# Load configuration from environment variables
+# Configuration
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key')
 app.config['DEBUG'] = os.environ.get('FLASK_DEBUG', 'False').lower() == 'true'
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get(
+    'DATABASE_URL', 'sqlite:///local.db'
+)
+if app.config['SQLALCHEMY_DATABASE_URI'].startswith('postgres://'):
+    app.config['SQLALCHEMY_DATABASE_URI'] = app.config['SQLALCHEMY_DATABASE_URI'].replace(
+        'postgres://', 'postgresql://', 1
+)
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {'pool_pre_ping': True}
 
-# Available LLM providers configuration
+# Initialize database
+from src.backend.models import init_db
+init_db(app)
+
+# ... rest of the existing routes remain unchanged
+
 LLM_PROVIDERS = {
     'openai': {
         'model': os.environ.get('OPENAI_MODEL', 'gpt-3.5-turbo'),

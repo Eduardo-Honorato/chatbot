@@ -9,6 +9,7 @@ google-generativeai==0.3.2
 
 # Database (Task 3)
 SQLAlchemy==2.0.29
+Flask-SQLAlchemy==3.1.1
 psycopg2-binary==2.9.9
 
 # Utilities
