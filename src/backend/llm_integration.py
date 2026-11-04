@@ -19,15 +19,15 @@ class LLMIntegration:
     def __init__(self):
         self.providers = {
             LLMProvider.OPENAI: {
-                'model': os.environ.get('OPENAI_MODEL', 'gpt-3.5-turbo'),
+                'model': os.environ.get('OPENAI_MODEL'),
                 'api_key': os.environ.get('OPENAI_API_KEY'),
             },
             LLMProvider.ANTHROPIC: {
-                'model': os.environ.get('ANTHROPIC_MODEL', 'claude-instant-1.2'),
+                'model': os.environ.get('ANTHROPIC_MODEL'),
                 'api_key': os.environ.get('ANTHROPIC_API_KEY'),
             },
             LLMProvider.GEMINI: {
-                'model': os.environ.get('GEMINI_MODEL', 'gemini-pro'),
+                'model': os.environ.get('GEMINI_MODEL'),
                 'api_key': os.environ.get('GEMINI_API_KEY'),
             },
         }
@@ -73,7 +73,12 @@ class LLMIntegration:
             try:
                 if provider == LLMProvider.OPENAI:
                     import openai
-                    config['client'] = openai.OpenAI(api_key=config['api_key'])
+                    config['client'] = openai.OpenAI(
+                        api_key=config['api_key'],
+                        base_url=os.environ.get('OPENAI_BASE_URL') or None,
+                        timeout=20,
+                        max_retries=1,
+                    )
                     logger.info(f"OpenAI client initialized with model: {config['model']}")
                 elif provider == LLMProvider.ANTHROPIC:
                     import anthropic
